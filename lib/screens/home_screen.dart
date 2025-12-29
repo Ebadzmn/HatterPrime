@@ -15,6 +15,7 @@ class _HomeScreenState extends State<HomeScreen> {
   InAppWebViewController? _webViewController;
   bool _isLoading = true;
   bool _isConnected = true;
+  bool _canGoBack = false;
   double _progress = 0;
 
   final InAppWebViewSettings _settings = InAppWebViewSettings(
@@ -86,6 +87,17 @@ class _HomeScreenState extends State<HomeScreen> {
         _webViewController!.reload();
       }
     });
+  }
+
+  Future<void> _checkCanGoBack() async {
+    if (_webViewController != null) {
+      final canGoBack = await _webViewController!.canGoBack();
+      if (mounted) {
+        setState(() {
+          _canGoBack = canGoBack;
+        });
+      }
+    }
   }
 
   @override
@@ -160,15 +172,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 onWebViewCreated: (controller) {
                   _webViewController = controller;
                 },
+                onUpdateVisitedHistory:
+                    (controller, url, androidIsReload) async {
+                  await _checkCanGoBack();
+                },
                 onLoadStart: (controller, url) {
                   setState(() {
                     _isLoading = true;
                   });
+                  _checkCanGoBack();
                 },
                 onLoadStop: (controller, url) {
                   setState(() {
                     _isLoading = false;
                   });
+                  _checkCanGoBack();
                 },
                 onProgressChanged: (controller, progress) {
                   setState(() {
@@ -256,32 +274,66 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Container(
+              height: 60,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Stack(
                 children: [
-                  // Menu Button (Opens Bottom Sheet)
-                  _buildBottomBarButton(
-                    icon: Icons.menu,
-                    label: "Menu",
-                    onTap: _showMenuBottomSheet,
-                  ),
-
-                  // App Title (Center, minimal)
-                  Text(
-                    AppConstants.appName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                  // App Title (Absolute Center)
+                  const Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(width: 40),
+                        Text(
+                          AppConstants.appName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
-                  // Refresh Button
-                  _buildBottomBarButton(
-                    icon: Icons.refresh,
-                    label: "Refresh",
-                    onTap: () => _webViewController?.reload(),
+                  // Buttons (Left & Right)
+                  Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Left Side (Back + Menu)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Back Button
+                            _buildBottomBarButton(
+                              icon: Icons.arrow_back_ios_new,
+                              label: "Back",
+                              onTap: () async {
+                                if (_webViewController != null && await _webViewController!.canGoBack()) {
+                                  _webViewController!.goBack();
+                                }
+                              },
+                              isEnabled: _canGoBack,
+                            ),
+                            const SizedBox(width: 12),
+                            // Menu Button
+                            _buildBottomBarButton(
+                              icon: Icons.menu,
+                              label: "Menu",
+                              onTap: _showMenuBottomSheet,
+                            ),
+                          ],
+                        ),
+
+                        // Right Side (Refresh)
+                        _buildBottomBarButton(
+                          icon: Icons.refresh,
+                          label: "Refresh",
+                          onTap: () => _webViewController?.reload(),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -295,18 +347,22 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBottomBarButton({
     required IconData icon,
     required String label,
-    required VoidCallback onTap,
+    VoidCallback? onTap,
+    bool isEnabled = true,
   }) {
     return InkWell(
-      onTap: onTap,
+      onTap: isEnabled ? onTap : null,
       borderRadius: BorderRadius.circular(50),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey[100],
+          color: isEnabled ? Colors.grey[100] : Colors.grey[50],
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: Colors.black),
+        child: Icon(
+          icon,
+          color: isEnabled ? Colors.black : Colors.grey[300],
+        ),
       ),
     );
   }
@@ -448,7 +504,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.pop(context);
                       _webViewController?.loadUrl(
                         urlRequest: URLRequest(
-                          url: WebUri('${AppConstants.webUrl}/login'),
+                          url: WebUri('${AppConstants.webUrl}/log-in/'),
                         ),
                       );
                     },
@@ -537,7 +593,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.pop(context);
                       _webViewController?.loadUrl(
                         urlRequest: URLRequest(
-                          url: WebUri('${AppConstants.webUrl}/login'),
+                          url: WebUri('${AppConstants.webUrl}/log-in/'),
                         ),
                       );
                     },
