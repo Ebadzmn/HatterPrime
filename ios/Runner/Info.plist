@@ -31,6 +31,12 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>This app needs access to your photo library to upload profile pictures or share images.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>This app needs access to your camera to take photos for profile pictures or sharing.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>This app needs access to your microphone for video recording.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

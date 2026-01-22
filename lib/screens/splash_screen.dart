@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hatters_prime/constants.dart';
 import 'package:hatters_prime/screens/home_screen.dart';
+import 'package:hatters_prime/services/notification_helper.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

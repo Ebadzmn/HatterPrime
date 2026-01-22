@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hatters_prime/constants.dart';
+import 'package:hatters_prime/services/notification_helper.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -59,6 +60,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _checkConnectivity();
+    // Ensure notifications are setup even if SplashScreen skipped it
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        NotificationHelper.initialize(context);
+      }
+    });
   }
 
   Future<void> _checkConnectivity() async {

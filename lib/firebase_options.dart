@@ -55,6 +55,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '95220577722',
     projectId: 'hatters-prime-app-2b4c2',
     storageBucket: 'hatters-prime-app-2b4c2.firebasestorage.app',
+    databaseURL: 'https://hatters-prime-app-2b4c2-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
