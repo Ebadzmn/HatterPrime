@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "95220577722",
+    "project_id": "hatters-prime-app-2b4c2",
+    "storage_bucket": "hatters-prime-app-2b4c2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:95220577722:android:e9fed4e91af52cb56cd983",
+        "android_client_info": {
+          "package_name": "com.hatters_prime.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGp8XCdioYLHfd2rDpqjIdVCYTp9SclTM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
