@@ -1,9 +1,15 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hatters_prime/constants.dart';
 import 'package:hatters_prime/services/notification_helper.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:get/get.dart';
+import 'package:hatters_prime/screens/membership_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,6 +24,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isConnected = true;
   bool _canGoBack = false;
   double _progress = 0;
+  bool _shouldCheckAuthToken = false;
+  Timer? _tokenCheckTimer;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   final InAppWebViewSettings _settings = InAppWebViewSettings(
     // Update 1
@@ -68,6 +77,13 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _tokenCheckTimer?.cancel();
+    _connectivitySubscription?.cancel();
+    super.dispose();
+  }
+
   Future<void> _checkConnectivity() async {
     final connectivityResult = await Connectivity().checkConnectivity();
     final hasConnection = connectivityResult.any(
@@ -79,9 +95,11 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     // Listen for connectivity changes
-    Connectivity().onConnectivityChanged.listen((
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((
       List<ConnectivityResult> results,
     ) {
+      if (!mounted) return;
+      
       final hasConnection = results.any(
         (result) => result != ConnectivityResult.none,
       );
@@ -91,7 +109,11 @@ class _HomeScreenState extends State<HomeScreen> {
       });
 
       if (_isConnected && _webViewController != null) {
-        _webViewController!.reload();
+        try {
+          _webViewController!.reload();
+        } catch (e) {
+          debugPrint('Error reloading webview: $e');
+        }
       }
     });
   }
@@ -105,6 +127,88 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     }
+  }
+
+  Future<void> _openExternalUrl(String url) async {
+    final uri = Uri.parse(url);
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched) {
+      debugPrint('Failed to launch external url: $url');
+    }
+  }
+
+  void _startTokenCheckTimer() {
+    if (!_shouldCheckAuthToken) {
+      return;
+    }
+    if (_tokenCheckTimer?.isActive ?? false) {
+      return;
+    }
+    _tokenCheckTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _checkAndStoreWordPressToken();
+    });
+  }
+
+  Future<void> _checkAndStoreWordPressToken() async {
+    if (!_shouldCheckAuthToken) {
+      return;
+    }
+    if (_webViewController == null) {
+      return;
+    }
+    try {
+      final result = await _webViewController!.evaluateJavascript(
+        source: 'window.APP_AUTH && window.APP_AUTH.token',
+      );
+      final token = _normalizeTokenResult(result);
+      if (token == null || token.isEmpty) {
+        return;
+      }
+      debugPrint('WordPress Token: $token');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('wordpressAuthToken', token);
+      _shouldCheckAuthToken = false;
+      _tokenCheckTimer?.cancel();
+      _tokenCheckTimer = null;
+    } catch (e) {
+      debugPrint('Error retrieving WordPress token: $e');
+    }
+  }
+
+  String? _normalizeTokenResult(dynamic result) {
+    if (result == null) {
+      return null;
+    }
+    if (result is String) {
+      var value = result.trim();
+      if (value.isEmpty ||
+          value == 'null' ||
+          value == 'undefined' ||
+          value == '"null"' ||
+          value == '"undefined"') {
+        return null;
+      }
+      if ((value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.substring(1, value.length - 1).trim();
+      }
+      if (value.isEmpty ||
+          value == 'null' ||
+          value == 'undefined') {
+        return null;
+      }
+      return value;
+    }
+    final value = result.toString().trim();
+    if (value.isEmpty ||
+        value == 'null' ||
+        value == 'undefined') {
+      return null;
+    }
+    return value;
   }
 
   @override
@@ -194,6 +298,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     _isLoading = false;
                   });
                   _checkCanGoBack();
+                  if (url != null) {
+                    final urlString = url.toString();
+                    final isLoginPath = urlString.contains('/log-in');
+                    final isMembersPath = urlString.contains('/members');
+                    final isAccountPath = urlString.contains('/account');
+                    if (isLoginPath || isMembersPath || isAccountPath) {
+                      _shouldCheckAuthToken = true;
+                      _startTokenCheckTimer();
+                    }
+                  }
                 },
                 onProgressChanged: (controller, progress) {
                   setState(() {
@@ -204,6 +318,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   debugPrint('WebView Error: ${error.description}');
                 },
                 shouldOverrideUrlLoading: (controller, navigationAction) async {
+                  final uri = navigationAction.request.url;
+                  if (uri != null) {
+                    final urlString = uri.toString();
+                    final isMembership =
+                        urlString.startsWith('https://hattersprime.com/memberships');
+                    final isJoinNow =
+                        urlString.startsWith('https://hattersprime.com/join-now');
+                    if (isMembership || isJoinNow) {
+                      await _openExternalUrl(urlString);
+                      return NavigationActionPolicy.CANCEL;
+                    }
+                  }
                   return NavigationActionPolicy.ALLOW;
                 },
                 onCreateWindow: (controller, createWindowAction) async {
@@ -473,11 +599,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     'MEMBERSHIPS',
                     onTap: () {
                       Navigator.pop(context);
-                      _webViewController?.loadUrl(
-                        urlRequest: URLRequest(
-                          url: WebUri('${AppConstants.webUrl}/memberships'),
-                        ),
-                      );
+                      Get.to(() => const MembershipScreen());
                     },
                   ),
                   _buildMenuItem(
@@ -485,11 +607,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     'JOIN NOW',
                     onTap: () {
                       Navigator.pop(context);
-                      _webViewController?.loadUrl(
-                        urlRequest: URLRequest(
-                          url: WebUri('${AppConstants.webUrl}/join'),
-                        ),
-                      );
+                      _openExternalUrl('https://hattersprime.com/join-now/');
                     },
                   ),
                   _buildMenuItem(

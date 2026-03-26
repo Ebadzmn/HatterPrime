@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:hatters_prime/firebase_options.dart';
 import 'package:hatters_prime/screens/splash_screen.dart';
 import 'package:hatters_prime/services/notification_helper.dart';
@@ -40,7 +41,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
       title: "Hatter's Prime",
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
