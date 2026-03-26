@@ -1,327 +1,409 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:hatters_prime/controllers/membership_controller.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../controllers/membership_controller.dart';
 
 class MembershipScreen extends StatelessWidget {
   const MembershipScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Inject the controller
+    // Inject the existing membership controller
     final MembershipController controller = Get.put(MembershipController());
+    final Color primaryColor = const Color(0xFF005E41);
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Membership', style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.black87),
+          onPressed: () => Get.back(),
+        ),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Header similar to image
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF005E41), // Deep Green from Hatter Insider
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          )
-                        ],
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'HATTER INSIDER',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    
-                    const Text(
-                      'Choose your plan:',
-                      style: TextStyle(
-                        fontSize: 18, 
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Basic Plan Card
-                    Obx(() => _buildPlanCard(
-                      title: 'Basic Plan',
-                      price: '20',
-                      description: 'Small plan (Basic)',
-                      icon: Icons.star_border_rounded,
-                      isSelected: controller.selectedPlan.value == 1,
-                      onTap: () => controller.selectPlan(1),
-                    )),
-                    
-                    const SizedBox(height: 20),
-                    
-                    // Premium Plan Card
-                    Obx(() => _buildPlanCard(
-                      title: 'Premium Plan',
-                      price: '200',
-                      description: 'Highlighted plan (Premium)',
-                      icon: Icons.diamond_outlined,
-                      isSelected: controller.selectedPlan.value == 2,
-                      isPremium: true,
-                      onTap: () => controller.selectPlan(2),
-                    )),
-                    
-                    const SizedBox(height: 32),
-
-                    // Includes Section
-                    const Text(
-                      'Includes:',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.black54,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    _buildFeatureItem('Multi-sport access to all members-only content', isFirst: true),
-                    _buildFeatureItem('Practice & workout footage, scrimmages, and drills'),
-                    _buildFeatureItem('Player & coach interviews and film-room insights'),
-                    _buildFeatureItem('Weekly team updates and new episode drops by sport'),
-                    _buildFeatureItem('Behind-the-scenes travel, culture, and game-week features'),
-                    _buildFeatureItem('Archive access with sport filters (Baseball, Football, MBB, WBB, Golf)', isLast: true),
-                    
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 8.0,
             ),
-            
-            // Join Now Button Pinned to Bottom
-            Container(
-              padding: const EdgeInsets.all(24.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    offset: const Offset(0, -4),
-                    blurRadius: 10,
-                  )
-                ]
-              ),
-              child: Obx(() => ElevatedButton(
-                onPressed: (controller.selectedPlan.value == 0 || controller.isPurchasing.value)
-                  ? null 
-                  : () {
-                      controller.purchaseSelectedPlan();
-                    },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF005E41),
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade300,
-                  disabledForegroundColor: Colors.grey.shade600,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  minimumSize: const Size(double.infinity, 0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: controller.selectedPlan.value == 0 ? 0 : 4,
-                ),
-                child: controller.isPurchasing.value
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2.5,
-                        ),
-                      )
-                    : const Text(
-                        'JOIN NOW',
-                        style: TextStyle(
-                          fontSize: 18, 
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-              )),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(primaryColor),
+                const SizedBox(height: 32),
+                _buildFeatures(primaryColor),
+                const SizedBox(height: 32),
+                _buildPlans(controller, primaryColor),
+                const SizedBox(height: 32),
+                _buildCallToAction(controller, primaryColor),
+                const SizedBox(height: 32),
+                _buildFooterLinks(),
+                const SizedBox(height: 24),
+                _buildLegalNotes(),
+                const SizedBox(height: 24),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildFeatureItem(String text, {bool isFirst = false, bool isLast = false}) {
+  Widget _buildHeader(Color primaryColor) {
     return Column(
       children: [
-        if (isFirst) Divider(color: Colors.grey.shade300, height: 1),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.check_circle, 
-                color: Color(0xFF005E41),
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  text,
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
+        Container(
+          height: 72,
+          width: 72,
+          decoration: BoxDecoration(
+            color: primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(20),
           ),
+          child: Icon(Icons.workspace_premium, size: 40, color: primaryColor),
         ),
-        if (!isLast) Divider(color: Colors.grey.shade300, height: 1),
-        if (isLast) Divider(color: Colors.grey.shade300, height: 1), // also line at very bottom
+        const SizedBox(height: 24),
+        const Text(
+          "Get Premium Access",
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+            color: Colors.black87,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          "Unlock all features and enjoy an ad-free experience",
+          style: TextStyle(fontSize: 16, color: Colors.grey[600], height: 1.4),
+          textAlign: TextAlign.center,
+        ),
       ],
     );
   }
 
+  Widget _buildFeatures(Color primaryColor) {
+    return Column(
+      children: [
+        _buildFeatureRow(
+          Icons.all_inclusive,
+          "Unlimited access to all content",
+          primaryColor,
+        ),
+        _buildFeatureRow(
+          Icons.block,
+          "No ads, completely uninterrupted",
+          primaryColor,
+        ),
+        _buildFeatureRow(
+          Icons.support_agent,
+          "Priority 24/7 customer support",
+          primaryColor,
+        ),
+        _buildFeatureRow(
+          Icons.star_border,
+          "Exclusive premium features",
+          primaryColor,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatureRow(IconData icon, String text, Color primaryColor) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: primaryColor, size: 18),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlans(MembershipController controller, Color primaryColor) {
+    return Obx(
+      () => Row(
+        children: [
+          Expanded(
+            child: _buildPlanCard(
+              controller: controller,
+              primaryColor: primaryColor,
+              planIndex: 1, // 1 maps to Monthly in MembershipController
+              title: "Monthly",
+              price: "\$20",
+              duration: "1 month",
+              isSelected: controller.selectedPlan.value == 1,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: _buildPlanCard(
+              controller: controller,
+              primaryColor: primaryColor,
+              planIndex: 2, // 2 maps to Yearly in MembershipController
+              title: "Yearly",
+              price: "\$200",
+              duration: "1 year",
+              isSelected: controller.selectedPlan.value == 2,
+              recommendedLabel: "Best Value",
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPlanCard({
+    required MembershipController controller,
+    required Color primaryColor,
+    required int planIndex,
     required String title,
     required String price,
-    required String description,
-    required IconData icon,
+    required String duration,
     required bool isSelected,
-    required VoidCallback onTap,
-    bool isPremium = false,
+    String? recommendedLabel,
   }) {
     return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFF0FAF5) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF005E41) : Colors.grey.shade200,
-            width: isSelected ? 2.5 : 1.5,
-          ),
-          boxShadow: isSelected ? [
-            BoxShadow(
-              color: const Color(0xFF005E41).withOpacity(0.15),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            )
-          ] : [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ],
-        ),
-        child: Row(
-          children: [
-            // Icon
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isSelected ? const Color(0xFF005E41).withOpacity(0.1) : Colors.grey.shade100,
-                shape: BoxShape.circle,
+      onTap: () => controller.selectPlan(planIndex),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: BoxDecoration(
+              color: isSelected ? primaryColor.withOpacity(0.05) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isSelected ? primaryColor : Colors.grey[200]!,
+                width: isSelected ? 2 : 1.5,
               ),
-              child: Icon(
-                icon,
-                color: isSelected ? const Color(0xFF005E41) : Colors.grey.shade500,
-                size: isPremium ? 32 : 28,
-              ),
-            ),
-            const SizedBox(width: 20),
-            
-            // Text Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: isPremium ? 20 : 18,
-                      fontWeight: FontWeight.bold,
-                      color: isSelected ? const Color(0xFF005E41) : Colors.black87,
-                    ),
+              boxShadow: [
+                if (isSelected)
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.15),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
+                  )
+                else
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            // Price & Check
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '\$',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? const Color(0xFF005E41) : Colors.black87,
-                      ),
-                    ),
-                    Text(
-                      price,
-                      style: TextStyle(
-                        fontSize: isPremium ? 32 : 28,
-                        fontWeight: FontWeight.w800,
-                        color: isSelected ? const Color(0xFF005E41) : Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-                if (isSelected) ...[
-                  const SizedBox(height: 8),
-                  const Icon(
-                    Icons.check_circle_rounded, 
-                    color: Color(0xFF005E41),
-                    size: 24,
-                  ),
-                ] else const SizedBox(height: 32), // Placeholder to keep height consistent
               ],
             ),
-          ],
-        ),
+            child: Column(
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected ? primaryColor : Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  price,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  duration,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[500],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (recommendedLabel != null)
+            Positioned(
+              top: -12,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    recommendedLabel,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildCallToAction(
+    MembershipController controller,
+    Color primaryColor,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Obx(
+          () => ElevatedButton(
+            onPressed:
+                (controller.selectedPlan.value == 0 ||
+                    controller.isPurchasing.value)
+                ? null
+                : () => controller.purchaseSelectedPlan(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: Colors.grey.shade300,
+              disabledForegroundColor: Colors.grey.shade600,
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              elevation: controller.selectedPlan.value == 0 ? 0 : 4,
+              shadowColor: primaryColor.withOpacity(0.4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: controller.isPurchasing.value
+                ? const SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2.5,
+                    ),
+                  )
+                : const Text(
+                    "Subscribe Now",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () {
+            if (controller.isPurchasing.value == false) {
+              controller.restorePurchases();
+            }
+          },
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.grey[600],
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+          child: const Text(
+            "Restore Purchase",
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooterLinks() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        GestureDetector(
+          onTap: () async {
+            final Uri url = Uri.parse(
+              'https://hattersprime.com/privacy-policy/',
+            );
+            if (await canLaunchUrl(url)) {
+              await launchUrl(url, mode: LaunchMode.externalApplication);
+            }
+          },
+          child: Text(
+            "Privacy Policy",
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          child: Text(
+            "|",
+            style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+          ),
+        ),
+        GestureDetector(
+          onTap: () async {
+            final Uri url = Uri.parse(
+              'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
+            );
+            if (await canLaunchUrl(url)) {
+              await launchUrl(url, mode: LaunchMode.externalApplication);
+            }
+          },
+          child: Text(
+            "Terms of Use",
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLegalNotes() {
+    return Text(
+      "Payment will be charged to your Apple ID account at confirmation of purchase. "
+      "Subscription automatically renews unless auto-renew is turned off at least "
+      "24 hours before the end of the current period.",
+      style: TextStyle(fontSize: 12, color: Colors.grey[500], height: 1.5),
+      textAlign: TextAlign.center,
     );
   }
 }

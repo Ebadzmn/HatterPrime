@@ -5,8 +5,8 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:intl/intl.dart';
 
 class MembershipController extends GetxController {
-  // 0 for none, 1 for basic (monthly), 2 for premium (yearly)
-  var selectedPlan = 0.obs;
+  // 1 for basic (monthly), 2 for premium (yearly)
+  var selectedPlan = 2.obs;
   var isPurchasing = false.obs;
 
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
@@ -90,6 +90,16 @@ class MembershipController extends GetxController {
     } catch (e) {
       isPurchasing.value = false;
       Get.snackbar('Error', e.toString());
+    }
+  }
+
+  Future<void> restorePurchases() async {
+    try {
+      isPurchasing.value = true;
+      await _inAppPurchase.restorePurchases();
+    } catch (e) {
+      isPurchasing.value = false;
+      Get.snackbar('Error', 'Failed to restore purchases: $e');
     }
   }
 

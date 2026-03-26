@@ -63,6 +63,8 @@ class _HomeScreenState extends State<HomeScreen> {
     allowUniversalAccessFromFileURLs: true,
     // Transparent background
     transparentBackground: true,
+    // CRITICAL: Ensure tablets (especially iPads) render in mobile mode so touch events register properly
+    preferredContentMode: UserPreferredContentMode.MOBILE,
   );
 
   @override

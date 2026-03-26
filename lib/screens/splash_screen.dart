@@ -25,7 +25,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     // 1. Initialize Animation Controller
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 2000), // Total animation time
+      duration: const Duration(milliseconds: 800), // Optimized animation time
       vsync: this,
     );
 
@@ -75,15 +75,8 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initApp() async {
-    // Determine minimum wait time (animation duration + buffer)
-    final minWait = Future.delayed(const Duration(milliseconds: 2500));
-
-    // Simulate other async tasks here (e.g., Auth check, Data prefetch)
-    // await authService.checkLogin();
-    // await dataService.prefetch();
-
-    // Wait for both animation time and tasks
-    await minWait;
+    // Optimized wait time to just finish the splash animation smoothly
+    await Future.delayed(const Duration(milliseconds: 800));
 
     if (mounted) {
       _navigateToHome();
@@ -98,7 +91,7 @@ class _SplashScreenState extends State<SplashScreen>
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
-        transitionDuration: const Duration(milliseconds: 800),
+        transitionDuration: const Duration(milliseconds: 400),
       ),
     );
   }
