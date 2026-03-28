@@ -323,11 +323,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   final uri = navigationAction.request.url;
                   if (uri != null) {
                     final urlString = uri.toString();
+                    
+                    // Intercept the /join-now/ link and redirect internally
+                    if (urlString.startsWith('https://hattersprime.com/join-now') &&
+                        !urlString.startsWith('https://hattersprime.com/join-now-new')) {
+                      await controller.loadUrl(
+                        urlRequest: URLRequest(
+                          url: WebUri('https://hattersprime.com/join-now-new/'),
+                        ),
+                      );
+                      return NavigationActionPolicy.CANCEL;
+                    }
+
                     final isMembership =
                         urlString.startsWith('https://hattersprime.com/memberships');
-                    final isJoinNow =
-                        urlString.startsWith('https://hattersprime.com/join-now');
-                    if (isMembership || isJoinNow) {
+                    if (isMembership) {
                       await _openExternalUrl(urlString);
                       return NavigationActionPolicy.CANCEL;
                     }
@@ -609,7 +619,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     'JOIN NOW',
                     onTap: () {
                       Navigator.pop(context);
-                      _openExternalUrl('https://hattersprime.com/join-now/');
+                      _webViewController?.loadUrl(
+                        urlRequest: URLRequest(
+                          url: WebUri('https://hattersprime.com/join-now-new/'),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildMenuItem(
+                    Icons.app_registration,
+                    'REGISTER',
+                    onTap: () {
+                      Navigator.pop(context);
+                      _webViewController?.loadUrl(
+                        urlRequest: URLRequest(
+                          url: WebUri('https://hattersprime.com/join-now-new/'),
+                        ),
+                      );
                     },
                   ),
                   _buildMenuItem(
