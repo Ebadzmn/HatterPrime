@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:hatters_prime/constants.dart';
 import 'package:hatters_prime/screens/home_screen.dart';
 import 'package:hatters_prime/services/notification_helper.dart';
+import 'package:get/get.dart';
+import 'package:hatters_prime/controllers/membership_controller.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -77,6 +79,10 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _initApp() async {
     // Optimized wait time to just finish the splash animation smoothly
     await Future.delayed(const Duration(milliseconds: 800));
+
+    // Initialize MembershipController globally and fetch status
+    final membershipController = Get.put(MembershipController(), permanent: true);
+    await membershipController.fetchSubscriptionStatus();
 
     if (mounted) {
       _navigateToHome();

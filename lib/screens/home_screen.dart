@@ -83,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _tokenCheckTimer?.cancel();
     _connectivitySubscription?.cancel();
+    _webViewController = null;
     super.dispose();
   }
 
@@ -99,7 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Listen for connectivity changes
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((
       List<ConnectivityResult> results,
-    ) {
+    ) async {
       if (!mounted) return;
       
       final hasConnection = results.any(
@@ -112,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (_isConnected && _webViewController != null) {
         try {
-          _webViewController!.reload();
+          await _webViewController!.reload();
         } catch (e) {
           debugPrint('Error reloading webview: $e');
         }
@@ -338,7 +339,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     final isMembership =
                         urlString.startsWith('https://hattersprime.com/memberships');
                     if (isMembership) {
-                      await _openExternalUrl(urlString);
+                      final prefs = await SharedPreferences.getInstance();
+                      final token = prefs.getString('wordpressAuthToken');
+                      if (token != null && token.isNotEmpty) {
+                        Get.to(() => const MembershipScreen());
+                      } else {
+                        await controller.loadUrl(
+                          urlRequest: URLRequest(
+                            url: WebUri('${AppConstants.webUrl}/log-in/'),
+                          ),
+                        );
+                      }
                       return NavigationActionPolicy.CANCEL;
                     }
                   }
@@ -609,9 +620,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildMenuItem(
                     Icons.card_membership,
                     'MEMBERSHIPS',
-                    onTap: () {
+                    onTap: () async {
                       Navigator.pop(context);
-                      Get.to(() => const MembershipScreen());
+                      final prefs = await SharedPreferences.getInstance();
+                      final token = prefs.getString('wordpressAuthToken');
+                      if (token != null && token.isNotEmpty) {
+                        Get.to(() => const MembershipScreen());
+                      } else {
+                        _webViewController?.loadUrl(
+                          urlRequest: URLRequest(
+                            url: WebUri('${AppConstants.webUrl}/log-in/'),
+                          ),
+                        );
+                      }
                     },
                   ),
                   _buildMenuItem(

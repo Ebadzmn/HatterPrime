@@ -305,7 +305,10 @@ class MembershipScreen extends StatelessWidget {
               disabledBackgroundColor: Colors.grey.shade300,
               disabledForegroundColor: Colors.grey.shade600,
               padding: const EdgeInsets.symmetric(vertical: 18),
-              elevation: controller.selectedPlan.value == 0 ? 0 : 4,
+              elevation: controller.selectedPlan.value == 0 ||
+                      controller.isPurchasing.value
+                  ? 0
+                  : 4,
               shadowColor: primaryColor.withOpacity(0.4),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -324,6 +327,17 @@ class MembershipScreen extends StatelessWidget {
                     "Subscribe Now",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Obx(
+          () => Text(
+            controller.storeMessage.value ??
+                (controller.isStoreReady.value
+                    ? ''
+                    : 'Checking App Store availability...'),
+            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            textAlign: TextAlign.center,
           ),
         ),
         const SizedBox(height: 12),
