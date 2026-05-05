@@ -9,7 +9,8 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:get/get.dart';
-import 'package:hatters_prime/screens/membership_screen.dart';
+import 'package:hatters_prime/controllers/membership_controller.dart';
+import 'package:hatters_prime/screens/subscription_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -173,6 +174,15 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint('WordPress Token: $token');
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('wordpressAuthToken', token);
+
+      // Real-time validation after login
+      final membershipController = Get.find<MembershipController>();
+      await membershipController.fetchSubscriptionStatus();
+
+      if (!membershipController.isSubscribed.value) {
+        Get.offAll(() => const SubscriptionScreen());
+      }
+
       _shouldCheckAuthToken = false;
       _tokenCheckTimer?.cancel();
       _tokenCheckTimer = null;
@@ -339,16 +349,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     final isMembership =
                         urlString.startsWith('https://hattersprime.com/memberships');
                     if (isMembership) {
-                      final prefs = await SharedPreferences.getInstance();
-                      final token = prefs.getString('wordpressAuthToken');
-                      if (token != null && token.isNotEmpty) {
-                        Get.to(() => const MembershipScreen());
-                      } else {
-                        await controller.loadUrl(
-                          urlRequest: URLRequest(
-                            url: WebUri('${AppConstants.webUrl}/log-in/'),
-                          ),
+                      final membershipController = Get.find<MembershipController>();
+                      if (membershipController.isSubscribed.value) {
+                        Get.snackbar(
+                          'Active Subscription',
+                          'Your subscription is currently active.',
+                          backgroundColor: const Color(0xFF005E41),
+                          colorText: Colors.white,
+                          snackPosition: SnackPosition.BOTTOM,
                         );
+                      } else {
+                        final prefs = await SharedPreferences.getInstance();
+                        final token = prefs.getString('wordpressAuthToken');
+                        if (token != null && token.isNotEmpty) {
+                          Get.to(() => const SubscriptionScreen());
+                        } else {
+                          await controller.loadUrl(
+                            urlRequest: URLRequest(
+                              url: WebUri('${AppConstants.webUrl}/log-in/'),
+                            ),
+                          );
+                        }
                       }
                       return NavigationActionPolicy.CANCEL;
                     }
@@ -622,16 +643,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     'MEMBERSHIPS',
                     onTap: () async {
                       Navigator.pop(context);
-                      final prefs = await SharedPreferences.getInstance();
-                      final token = prefs.getString('wordpressAuthToken');
-                      if (token != null && token.isNotEmpty) {
-                        Get.to(() => const MembershipScreen());
-                      } else {
-                        _webViewController?.loadUrl(
-                          urlRequest: URLRequest(
-                            url: WebUri('${AppConstants.webUrl}/log-in/'),
-                          ),
+                      final controller = Get.find<MembershipController>();
+                      if (controller.isSubscribed.value) {
+                        Get.snackbar(
+                          'Active Subscription',
+                          'Your subscription is currently active.',
+                          backgroundColor: const Color(0xFF005E41),
+                          colorText: Colors.white,
+                          snackPosition: SnackPosition.BOTTOM,
                         );
+                      } else {
+                        final prefs = await SharedPreferences.getInstance();
+                        final token = prefs.getString('wordpressAuthToken');
+                        if (token != null && token.isNotEmpty) {
+                          Get.to(() => const SubscriptionScreen());
+                        } else {
+                          _webViewController?.loadUrl(
+                            urlRequest: URLRequest(
+                              url: WebUri('${AppConstants.webUrl}/log-in/'),
+                            ),
+                          );
+                        }
                       }
                     },
                   ),

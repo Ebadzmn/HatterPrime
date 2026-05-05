@@ -1,4 +1,4 @@
-import 'package:get/get.dart';
+    import 'package:get/get.dart';
 import '../models/purchase_details.dart';
 import '../services/subscription_service.dart';
 

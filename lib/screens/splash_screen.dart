@@ -4,6 +4,7 @@ import 'package:hatters_prime/screens/home_screen.dart';
 import 'package:hatters_prime/services/notification_helper.dart';
 import 'package:get/get.dart';
 import 'package:hatters_prime/controllers/membership_controller.dart';
+import 'package:hatters_prime/screens/subscription_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -85,7 +86,11 @@ class _SplashScreenState extends State<SplashScreen>
     await membershipController.fetchSubscriptionStatus();
 
     if (mounted) {
-      _navigateToHome();
+      if (membershipController.isSubscribed.value) {
+        _navigateToHome();
+      } else {
+        _navigateToMembership();
+      }
     }
   }
 
@@ -94,6 +99,19 @@ class _SplashScreenState extends State<SplashScreen>
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             const HomeScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
+  void _navigateToMembership() {
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            const SubscriptionScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },

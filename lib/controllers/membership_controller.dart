@@ -30,11 +30,13 @@ class MembershipController extends GetxController {
         return;
       }
 
+      final String nocache = DateTime.now().millisecondsSinceEpoch.toString();
       final url = Uri.parse(
-        '${AppConstants.webUrl}wp-json/imc/v1/subscription-status',
+        '${AppConstants.webUrl}wp-json/imc/v1/subscription-status?nocache=$nocache',
       );
       debugPrint('\n======= 🔄 FETCH SUBSCRIPTION STATUS =======');
       debugPrint('URL: $url');
+      debugPrint('Headers: Authorization: Bearer ${token.length > 5 ? token.substring(0, 5) : token}***');
 
       final response = await http.get(
         url,
@@ -47,9 +49,33 @@ class MembershipController extends GetxController {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        isSubscribed.value = data['status'] == 'active';
+        final String status = data['status'] ?? '';
+        final String? expiresAtStr = data['expires_at'];
+
+        bool isActive = status == 'active';
+
+        // Flow Logic: Expiry Validation
+        if (isActive && expiresAtStr != null && expiresAtStr.isNotEmpty) {
+          try {
+            final DateTime expiryDate = DateTime.parse(expiresAtStr);
+            final DateTime now = DateTime.now();
+            final DateTime today = DateTime(now.year, now.month, now.day);
+            final DateTime normalizedExpiry =
+                DateTime(expiryDate.year, expiryDate.month, expiryDate.day);
+
+            // If the current date is strictly AFTER the expires_at date: Treat as expired
+            if (today.isAfter(normalizedExpiry)) {
+              isActive = false;
+              debugPrint('Subscription treats as expired: $expiresAtStr');
+            }
+          } catch (e) {
+            debugPrint('Error parsing expiry date: $e');
+          }
+        }
+
+        isSubscribed.value = isActive;
         subscriptionPlan.value = data['plan'] ?? '';
-        subscriptionExpiry.value = data['expires_at'];
+        subscriptionExpiry.value = expiresAtStr;
       } else {
         isSubscribed.value = false;
       }
@@ -63,8 +89,8 @@ class MembershipController extends GetxController {
   late StreamSubscription<List<PurchaseDetails>> _subscription;
 
   // Product IDs matching the requirement
-  final String _monthlyId = 'com.hattersgroup.monthly';
-  final String _yearlyId = 'com.HattersCollectiveGroup.Yearly';
+  final String monthlyId = 'com.hatterscollect.monthly30';
+  final String yearlyId = 'com.hatterscollect.yearly1';
 
   var availableProducts = <ProductDetails>[].obs;
 
@@ -104,7 +130,7 @@ class MembershipController extends GetxController {
     }
 
     final ProductDetailsResponse response = await _inAppPurchase
-        .queryProductDetails({_monthlyId, _yearlyId});
+        .queryProductDetails({monthlyId, yearlyId});
 
     debugPrint('NOT FOUND IDS: ${response.notFoundIDs}');
     debugPrint('FOUND: ${response.productDetails.length}');
@@ -144,7 +170,7 @@ class MembershipController extends GetxController {
     }
 
     isPurchasing.value = true;
-    String targetId = selectedPlan.value == 1 ? _monthlyId : _yearlyId;
+    String targetId = selectedPlan.value == 1 ? monthlyId : yearlyId;
 
     ProductDetails? productDetails;
     try {
@@ -216,74 +242,64 @@ class MembershipController extends GetxController {
   Future<void> _handleSuccessfulPurchase(
     PurchaseDetails purchaseDetails,
   ) async {
-    // Keep loading state true while backend verification happens
+    // 1. Keep loading state true while backend verification happens
     isPurchasing.value = true;
 
-    // Mapping details as per requirement
-    const String platform =
-        'ios'; // You can also check Platform.isIOS dynamically
-    String backendProductId = '';
-
-    // Purchase Date formatting
-    DateTime purchaseDate = DateTime.now();
-    DateTime expiryDate = purchaseDate;
-
-    if (purchaseDetails.productID == _monthlyId) {
-      backendProductId = 'hattersprime_monthly';
-      // +1 month
-      expiryDate = DateTime(
-        purchaseDate.year,
-        purchaseDate.month + 1,
-        purchaseDate.day,
-      );
-    } else if (purchaseDetails.productID == _yearlyId) {
-      backendProductId = 'hattersprime_yearly';
-      // +1 year
-      expiryDate = DateTime(
-        purchaseDate.year + 1,
-        purchaseDate.month,
-        purchaseDate.day,
-      );
-    }
-
-    final DateFormat formatter = DateFormat('yyyy-MM-dd');
-    final String purchaseDateStr = formatter.format(purchaseDate);
-    final String expiryDateStr = formatter.format(expiryDate);
-    final String transactionId = purchaseDetails.purchaseID ?? 'Unknown';
-
-    if (backendProductId.isEmpty) {
-      isPurchasing.value = false;
-      Get.snackbar(
-        'Purchase Error',
-        'The purchased product does not match a supported subscription.',
-      );
-      return;
-    }
-
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('wordpressAuthToken') ?? '';
+      final String transactionId = purchaseDetails.purchaseID ?? '';
 
-      // Update this URL to match your exact backend endpoint
-      final url = Uri.parse(
-        '${AppConstants.webUrl}wp-json/custom/v1/subscription/update',
-      );
+      // 2. Validate transaction_id (Critical Rule)
+      if (transactionId.isEmpty || transactionId == 'Unknown') {
+        debugPrint('❌ Invalid Transaction ID: $transactionId');
+        isPurchasing.value = false;
+        return;
+      }
+
+      // 3. Prevent duplicate transactions (Critical Rule)
+      final prefs = await SharedPreferences.getInstance();
+      List<String> processedTransactions =
+          prefs.getStringList('processed_transactions') ?? [];
+
+      if (processedTransactions.contains(transactionId)) {
+        debugPrint('⚠️ Transaction already processed: $transactionId');
+        isPurchasing.value = false;
+        // Purchase was already synced, so we can consider it successful locally
+        await fetchSubscriptionStatus();
+        return;
+      }
+
+      // 4. Convert Product ID (VERY IMPORTANT)
+      String backendProductId = '';
+      if (purchaseDetails.productID == monthlyId) {
+        backendProductId = 'hattersprime_monthly';
+      } else if (purchaseDetails.productID == yearlyId) {
+        backendProductId = 'hattersprime_yearly';
+      }
+
+      if (backendProductId.isEmpty) {
+        debugPrint('❌ Unsupported Product ID: ${purchaseDetails.productID}');
+        isPurchasing.value = false;
+        Get.snackbar('Error', 'Unsupported subscription product.');
+        return;
+      }
+
+      // 5. Call API (Only after purchase success)
+      final token = prefs.getString('wordpressAuthToken') ?? '';
+      
+      // Endpoint: {{website-link}}/subscription/update
+      final url = Uri.parse('${AppConstants.webUrl}subscription/update');
 
       final requestBody = {
-        'platform': platform,
         'product_id': backendProductId,
         'transaction_id': transactionId,
-        'purchase_date': purchaseDateStr,
-        'expiry_date': expiryDateStr,
+        'source': 'app',
+        'platform': 'ios', // Critical Rule: must be "ios"
       };
 
-      debugPrint('\n======= 🚀 API CALL START =======');
+      debugPrint('\n======= 🚀 SUBSCRIPTION UPDATE API CALL =======');
       debugPrint('URL: $url');
-      debugPrint(
-        'HEADERS: {Content-Type: application/json, Authorization: Bearer ${token.isNotEmpty ? "TOKEN_EXISTS" : "NO_TOKEN"}}',
-      );
       debugPrint('BODY: ${jsonEncode(requestBody)}');
-      debugPrint('===================================\n');
+      debugPrint('===============================================\n');
 
       final response = await http.post(
         url,
@@ -292,42 +308,37 @@ class MembershipController extends GetxController {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode(requestBody),
-      );
+      ).timeout(const Duration(seconds: 30));
 
-      debugPrint('\n======= 📥 API CALL RESPONSE =======');
       debugPrint('STATUS CODE: ${response.statusCode}');
-      debugPrint('RESPONSE BODY: ${response.body}');
-      debugPrint('======================================\n');
+      debugPrint('RESPONSE: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // 6. Mark transaction as processed upon success
+        processedTransactions.add(transactionId);
+        await prefs.setStringList('processed_transactions', processedTransactions);
+
+        // Update local status
+        await fetchSubscriptionStatus();
+
         Get.snackbar(
           'Success',
-          'Your subscription is now active!',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: const Color(0xFF005E41),
+          'Subscription updated successfully!',
+          backgroundColor: Colors.green,
           colorText: Colors.white,
-          margin: const EdgeInsets.all(16),
-          borderRadius: 12,
-          icon: const Icon(Icons.check_circle, color: Colors.greenAccent),
         );
       } else {
+        debugPrint('❌ Backend verification failed: ${response.body}');
         Get.snackbar(
-          'Verification Failed',
-          'Status: ${response.statusCode}. Could not verify subscription with server.',
-          snackPosition: SnackPosition.BOTTOM,
+          'Update Failed',
+          'Could not sync subscription with server. Please try again.',
           backgroundColor: Colors.redAccent,
           colorText: Colors.white,
         );
       }
     } catch (e) {
-      debugPrint('\n======= ❌ API CALL ERROR =======');
-      debugPrint('ERROR: $e');
-      debugPrint('===================================\n');
-      Get.snackbar(
-        'Error',
-        'Network error during subscription verification.',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      debugPrint('❌ Error updating subscription: $e');
+      Get.snackbar('Error', 'An unexpected error occurred during verification.');
     } finally {
       isPurchasing.value = false;
     }
