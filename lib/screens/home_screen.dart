@@ -157,9 +157,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkAndStoreWordPressToken() async {
-    if (!_shouldCheckAuthToken) {
-      return;
-    }
     if (_webViewController == null) {
       return;
     }
@@ -168,21 +165,35 @@ class _HomeScreenState extends State<HomeScreen> {
         source: 'window.APP_AUTH && window.APP_AUTH.token',
       );
       final token = _normalizeTokenResult(result);
+      
+      final prefs = await SharedPreferences.getInstance();
+      final existingToken = prefs.getString('wordpressAuthToken');
+
       if (token == null || token.isEmpty) {
+        // Logout case: If we had a token but now it's gone from webview
+        if (existingToken != null && existingToken.isNotEmpty) {
+          debugPrint('🚪 Logout detected in WebView. Clearing local token.');
+          await prefs.remove('wordpressAuthToken');
+          
+          final membershipController = Get.find<MembershipController>();
+          membershipController.isSubscribed.value = false;
+          membershipController.subscriptionPlan.value = '';
+          membershipController.subscriptionExpiry.value = null;
+        }
         return;
       }
-      debugPrint('WordPress Token: $token');
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('wordpressAuthToken', token);
 
-      // Real-time validation after login
-      final membershipController = Get.find<MembershipController>();
-      await membershipController.fetchSubscriptionStatus();
+      // Login/Sync case: If token is different or we don't have one locally
+      if (token != existingToken) {
+        debugPrint('🔑 New/Refreshed WordPress Token detected: $token');
+        await prefs.setString('wordpressAuthToken', token);
 
-      if (!membershipController.isSubscribed.value) {
-        Get.offAll(() => const SubscriptionScreen());
+        // Real-time validation after login
+        final membershipController = Get.find<MembershipController>();
+        await membershipController.fetchSubscriptionStatus();
       }
 
+      // Stop aggressive checking once sync is achieved for this page load
       _shouldCheckAuthToken = false;
       _tokenCheckTimer?.cancel();
       _tokenCheckTimer = null;
@@ -311,16 +322,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     _isLoading = false;
                   });
                   _checkCanGoBack();
-                  if (url != null) {
-                    final urlString = url.toString();
-                    final isLoginPath = urlString.contains('/log-in');
-                    final isMembersPath = urlString.contains('/members');
-                    final isAccountPath = urlString.contains('/account');
-                    if (isLoginPath || isMembersPath || isAccountPath) {
-                      _shouldCheckAuthToken = true;
-                      _startTokenCheckTimer();
-                    }
-                  }
+                  
+                  // Always check auth state on page load stop to ensure sync
+                  _shouldCheckAuthToken = true;
+                  _startTokenCheckTimer();
                 },
                 onProgressChanged: (controller, progress) {
                   setState(() {

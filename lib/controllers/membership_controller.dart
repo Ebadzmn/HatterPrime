@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hatters_prime/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
-import 'package:intl/intl.dart';
 
 class MembershipController extends GetxController {
   // 1 for basic (monthly), 2 for premium (yearly)
@@ -36,7 +36,9 @@ class MembershipController extends GetxController {
       );
       debugPrint('\n======= 🔄 FETCH SUBSCRIPTION STATUS =======');
       debugPrint('URL: $url');
-      debugPrint('Headers: Authorization: Bearer ${token.length > 5 ? token.substring(0, 5) : token}***');
+      debugPrint(
+        'Headers: Authorization: Bearer ${token.length > 5 ? token.substring(0, 5) : token}***',
+      );
 
       final response = await http.get(
         url,
@@ -60,8 +62,11 @@ class MembershipController extends GetxController {
             final DateTime expiryDate = DateTime.parse(expiresAtStr);
             final DateTime now = DateTime.now();
             final DateTime today = DateTime(now.year, now.month, now.day);
-            final DateTime normalizedExpiry =
-                DateTime(expiryDate.year, expiryDate.month, expiryDate.day);
+            final DateTime normalizedExpiry = DateTime(
+              expiryDate.year,
+              expiryDate.month,
+              expiryDate.day,
+            );
 
             // If the current date is strictly AFTER the expires_at date: Treat as expired
             if (today.isAfter(normalizedExpiry)) {
@@ -89,10 +94,13 @@ class MembershipController extends GetxController {
   late StreamSubscription<List<PurchaseDetails>> _subscription;
 
   // Product IDs matching the requirement
-  final String monthlyId = 'com.hatterscollect.monthly30';
-  final String yearlyId = 'com.hatterscollect.yearly1';
+  final String monthlyId = 'com.hattersgroup.monthly';
+  final String yearlyId = 'com.hatterscollectivegroup.yearly';
+  // final String yearlyId = 'com.HattersCollectiveGroup.Yearly';
 
   var availableProducts = <ProductDetails>[].obs;
+
+  String get storeName => Platform.isIOS ? 'App Store' : 'Play Store';
 
   @override
   void onInit() {
@@ -109,7 +117,7 @@ class MembershipController extends GetxController {
       },
     );
     super.onInit();
-    _initStoreInfo();
+    initStoreInfo();
   }
 
   @override
@@ -118,7 +126,7 @@ class MembershipController extends GetxController {
     super.onClose();
   }
 
-  Future<void> _initStoreInfo() async {
+  Future<void> initStoreInfo() async {
     isStoreReady.value = false;
     storeMessage.value = null;
 
@@ -138,15 +146,15 @@ class MembershipController extends GetxController {
 
     if (response.error != null) {
       storeMessage.value =
-          'Unable to load subscription products from the App Store.';
+          'Unable to load subscription products from the $storeName.';
       debugPrint('Error loading products: ${response.error!.message}');
       return;
     }
 
     if (response.productDetails.isEmpty) {
       storeMessage.value =
-          'No subscription products were returned by the App Store.';
-      debugPrint('No product details returned by StoreKit.');
+          'No subscription products were returned by the $storeName.';
+      debugPrint('No product details returned from the store.');
       return;
     }
 
@@ -161,6 +169,10 @@ class MembershipController extends GetxController {
 
   Future<void> purchaseSelectedPlan() async {
     if (selectedPlan.value == 0) return;
+    if (isPurchasing.value) {
+      debugPrint('⚠️ Purchase already in progress. Skipping request.');
+      return;
+    }
     if (!isStoreReady.value) {
       Get.snackbar(
         'Store Unavailable',
@@ -183,7 +195,7 @@ class MembershipController extends GetxController {
       isPurchasing.value = false;
       Get.snackbar(
         'Product Missing',
-        'The selected subscription is not available from the App Store.',
+        'The selected subscription is not available from the $storeName.',
       );
       return;
     }
@@ -215,24 +227,32 @@ class MembershipController extends GetxController {
     List<PurchaseDetails> purchaseDetailsList,
   ) async {
     for (final PurchaseDetails purchaseDetails in purchaseDetailsList) {
+      debugPrint(
+        '📦 Purchase Update: ID=${purchaseDetails.purchaseID}, Status=${purchaseDetails.status}',
+      );
+
       if (purchaseDetails.status == PurchaseStatus.pending) {
         // Waiting for the purchase to complete
         isPurchasing.value = true;
       } else {
         if (purchaseDetails.status == PurchaseStatus.error) {
+          debugPrint('❌ Purchase Error: ${purchaseDetails.error?.message}');
           isPurchasing.value = false;
           Get.snackbar(
             'Purchase Failed',
             purchaseDetails.error?.message ?? 'Unknown error',
           );
         } else if (purchaseDetails.status == PurchaseStatus.canceled) {
+          debugPrint('🚫 Purchase Canceled by User');
           isPurchasing.value = false;
         } else if (purchaseDetails.status == PurchaseStatus.purchased ||
             purchaseDetails.status == PurchaseStatus.restored) {
+          debugPrint('✅ Purchase Success/Restored: Processing backend sync...');
           await _handleSuccessfulPurchase(purchaseDetails);
         }
 
         if (purchaseDetails.pendingCompletePurchase) {
+          debugPrint('🏁 Completing Purchase Transaction...');
           await _inAppPurchase.completePurchase(purchaseDetails);
         }
       }
@@ -285,30 +305,37 @@ class MembershipController extends GetxController {
 
       // 5. Call API (Only after purchase success)
       final token = prefs.getString('wordpressAuthToken') ?? '';
-      
-      // Endpoint: {{website-link}}/subscription/update
-      final url = Uri.parse('${AppConstants.webUrl}subscription/update');
+
+      // Endpoint: {{website-link}}/wp-json/imc/v1/subscription/update
+      final url = Uri.parse(
+        '${AppConstants.webUrl}wp-json/imc/v1/subscription/update',
+      );
 
       final requestBody = {
         'product_id': backendProductId,
         'transaction_id': transactionId,
         'source': 'app',
-        'platform': 'ios', // Critical Rule: must be "ios"
+        'platform': Platform.isIOS ? 'ios' : 'android',
       };
 
       debugPrint('\n======= 🚀 SUBSCRIPTION UPDATE API CALL =======');
       debugPrint('URL: $url');
+      debugPrint(
+        'HEADER: Authorization: Bearer ${token.isNotEmpty ? "${token.substring(0, 5)}***" : "EMPTY"}',
+      );
       debugPrint('BODY: ${jsonEncode(requestBody)}');
       debugPrint('===============================================\n');
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(requestBody),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 30));
 
       debugPrint('STATUS CODE: ${response.statusCode}');
       debugPrint('RESPONSE: ${response.body}');
@@ -316,7 +343,10 @@ class MembershipController extends GetxController {
       if (response.statusCode == 200 || response.statusCode == 201) {
         // 6. Mark transaction as processed upon success
         processedTransactions.add(transactionId);
-        await prefs.setStringList('processed_transactions', processedTransactions);
+        await prefs.setStringList(
+          'processed_transactions',
+          processedTransactions,
+        );
 
         // Update local status
         await fetchSubscriptionStatus();
@@ -338,7 +368,10 @@ class MembershipController extends GetxController {
       }
     } catch (e) {
       debugPrint('❌ Error updating subscription: $e');
-      Get.snackbar('Error', 'An unexpected error occurred during verification.');
+      Get.snackbar(
+        'Error',
+        'An unexpected error occurred during verification.',
+      );
     } finally {
       isPurchasing.value = false;
     }

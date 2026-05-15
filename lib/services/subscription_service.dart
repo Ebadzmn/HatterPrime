@@ -5,7 +5,7 @@ import '../models/subscription_response.dart';
 import 'dart:io';
 
 class SubscriptionService {
-  static const String baseUrl = 'https://your-api.com/api';
+  static const String baseUrl = 'https://hattersprime.com/wp-json/imc/v1';
 
   // Mocking the AuthService.getToken()
   Future<String> _getJwtToken() async {
@@ -40,7 +40,9 @@ class SubscriptionService {
       final jsonResponse = jsonDecode(response.body);
       return SubscriptionResponse.fromJson(jsonResponse);
     } else {
-      throw Exception('Failed to verify subscription. Status: ${response.statusCode}');
+      throw Exception(
+        'Failed to verify subscription. Status: ${response.statusCode}',
+      );
     }
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hatters_prime/screens/home_screen.dart';
@@ -66,12 +67,38 @@ class SubscriptionScreen extends StatelessWidget {
         children: [
           const CircularProgressIndicator(color: Color(0xFF005E41)),
           const SizedBox(height: 24),
-          Text(
-            controller.isPurchasing.value 
-                ? 'Processing your purchase...' 
-                : 'Connecting to App Store...',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-          ),
+          if (controller.isPurchasing.value)
+            const Text(
+              'Processing your purchase...',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            )
+          else if (controller.storeMessage.value == null)
+            Text(
+              'Connecting to ${controller.storeName}...',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+          if (!controller.isPurchasing.value && controller.storeMessage.value != null) ...[
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Text(
+                controller.storeMessage.value!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => controller.initStoreInfo(),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry Connection'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF005E41),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
           if (controller.isPurchasing.value) ...[
             const SizedBox(height: 8),
             const Text(
@@ -188,10 +215,10 @@ class SubscriptionScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          const Text(
-            'Cancel anytime. Payment processed securely via Apple.',
+           Text(
+            'Cancel anytime. Payment processed securely via ${Platform.isIOS ? 'Apple' : 'Google'}.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+            style: const TextStyle(color: Colors.grey, fontSize: 12),
           ),
         ],
       ),

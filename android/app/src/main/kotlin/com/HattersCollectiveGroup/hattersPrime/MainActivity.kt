@@ -1,4 +1,4 @@
-package com.hatters_prime.app
+package com.HattersCollectiveGroup.hattersPrime
 
 import io.flutter.embedding.android.FlutterActivity
 

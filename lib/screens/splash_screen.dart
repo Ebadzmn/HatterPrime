@@ -86,11 +86,7 @@ class _SplashScreenState extends State<SplashScreen>
     await membershipController.fetchSubscriptionStatus();
 
     if (mounted) {
-      if (membershipController.isSubscribed.value) {
-        _navigateToHome();
-      } else {
-        _navigateToMembership();
-      }
+      _navigateToHome();
     }
   }
 
