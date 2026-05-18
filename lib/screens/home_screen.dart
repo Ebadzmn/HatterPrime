@@ -314,6 +314,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 initialSettings: _settings,
                 onWebViewCreated: (controller) {
                   _webViewController = controller;
+                  // Handle hamburger menu click from within the website to open the app's custom menu slider
+                  controller.addJavaScriptHandler(
+                    handlerName: 'openAppMenu',
+                    callback: (args) {
+                      _showMenuBottomSheet();
+                    },
+                  );
                 },
                 onUpdateVisitedHistory:
                     (controller, url, androidIsReload) async {
@@ -340,6 +347,50 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Always check auth state on page load stop to ensure sync
                   _shouldCheckAuthToken = true;
                   _startTokenCheckTimer();
+
+                  // Inject click listener for hamburger menu (☰)
+                  controller.evaluateJavascript(source: """
+                    (function() {
+                      if (window.appMenuIntercepted) return;
+                      window.appMenuIntercepted = true;
+                      
+                      document.addEventListener('click', function(event) {
+                        var target = event.target;
+                        while (target && target !== document) {
+                          var isHamburger = false;
+                          var tagName = target.tagName || '';
+                          var className = typeof target.className === 'string' ? target.className : '';
+                          var id = typeof target.id === 'string' ? target.id : '';
+                          var ariaLabel = target.getAttribute ? (target.getAttribute('aria-label') || '') : '';
+                          
+                          if (
+                            className.indexOf('wp-block-navigation__responsive-container-open') !== -1 ||
+                            className.indexOf('menu-toggle') !== -1 ||
+                            className.indexOf('hamburger') !== -1 ||
+                            className.indexOf('nav-toggle') !== -1 ||
+                            id.indexOf('hamburger') !== -1 ||
+                            id.indexOf('nav-toggle') !== -1 ||
+                            ariaLabel.toLowerCase() === 'open menu' ||
+                            ariaLabel.toLowerCase().indexOf('hamburger') !== -1
+                          ) {
+                            isHamburger = true;
+                          }
+                          
+                          if (!isHamburger && target.textContent && target.textContent.trim() === '☰') {
+                            isHamburger = true;
+                          }
+                          
+                          if (isHamburger) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            window.flutter_inappwebview.callHandler('openAppMenu');
+                            break;
+                          }
+                          target = target.parentNode;
+                        }
+                      }, true);
+                    })();
+                  """);
                 },
                 onProgressChanged: (controller, progress) {
                   setState(() {
