@@ -95,8 +95,9 @@ class MembershipController extends GetxController {
 
   // Product IDs matching the requirement
   final String monthlyId = 'com.hattersgroup.monthly';
-  final String yearlyId = 'com.hatterscollectivegroup.yearly';
-  // final String yearlyId = 'com.HattersCollectiveGroup.Yearly';
+  final String yearlyId = Platform.isIOS
+      ? 'com.HattersCollectiveGroup.Yearly'
+      : 'com.hatterscollectivegroup.yearly';
 
   var availableProducts = <ProductDetails>[].obs;
 

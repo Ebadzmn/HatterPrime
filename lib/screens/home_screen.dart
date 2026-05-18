@@ -28,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _shouldCheckAuthToken = false;
   Timer? _tokenCheckTimer;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+  bool _hasVisitedSignup = false;
 
   final InAppWebViewSettings _settings = InAppWebViewSettings(
     // Update 1
@@ -174,6 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (existingToken != null && existingToken.isNotEmpty) {
           debugPrint('🚪 Logout detected in WebView. Clearing local token.');
           await prefs.remove('wordpressAuthToken');
+          _hasVisitedSignup = false;
           
           final membershipController = Get.find<MembershipController>();
           membershipController.isSubscribed.value = false;
@@ -191,6 +193,12 @@ class _HomeScreenState extends State<HomeScreen> {
         // Real-time validation after login
         final membershipController = Get.find<MembershipController>();
         await membershipController.fetchSubscriptionStatus();
+
+        if (_hasVisitedSignup && !membershipController.isSubscribed.value) {
+          debugPrint('🎉 Signup success! Redirecting to subscription page...');
+          _hasVisitedSignup = false; // Reset to avoid double triggering
+          Get.to(() => const SubscriptionScreen());
+        }
       }
 
       // Stop aggressive checking once sync is achieved for this page load
@@ -310,12 +318,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 onUpdateVisitedHistory:
                     (controller, url, androidIsReload) async {
                   await _checkCanGoBack();
+                  await _handleSportsPageAccess(controller, url);
                 },
                 onLoadStart: (controller, url) {
                   setState(() {
                     _isLoading = true;
                   });
                   _checkCanGoBack();
+                  if (url != null && url.toString().contains('/join-now')) {
+                    _hasVisitedSignup = true;
+                    debugPrint('📝 User visited signup page: $url');
+                  }
+                  _handleSportsPageAccess(controller, url);
                 },
                 onLoadStop: (controller, url) {
                   setState(() {
@@ -342,13 +356,37 @@ class _HomeScreenState extends State<HomeScreen> {
                     
                     // Intercept the /join-now/ link and redirect internally
                     if (urlString.startsWith('https://hattersprime.com/join-now') &&
-                        !urlString.startsWith('https://hattersprime.com/join-now-new')) {
+                        !urlString.startsWith('https://hattersprime.com/join-now-app')) {
                       await controller.loadUrl(
                         urlRequest: URLRequest(
-                          url: WebUri('https://hattersprime.com/join-now-new/'),
+                          url: WebUri('https://hattersprime.com/join-now-app/'),
                         ),
                       );
                       return NavigationActionPolicy.CANCEL;
+                    }
+
+                    // Check subscription requirement for sports pages
+                    final cleanPath = uri.path.replaceAll('//', '/');
+                    final isSportsPage = cleanPath.startsWith('/baseball') ||
+                        cleanPath.startsWith('/football') ||
+                        cleanPath.startsWith('/mens-basketball') ||
+                        cleanPath.startsWith('/womens-basketball');
+
+                    if (isSportsPage) {
+                      final membershipController = Get.find<MembershipController>();
+                      if (membershipController.isSubscribed.value) {
+                        return NavigationActionPolicy.ALLOW;
+                      } else {
+                        Get.snackbar(
+                          'Subscription Required',
+                          'Please subscribe to access this content.',
+                          backgroundColor: const Color(0xFFC62828),
+                          colorText: Colors.white,
+                          snackPosition: SnackPosition.BOTTOM,
+                        );
+                        Get.to(() => const SubscriptionScreen());
+                        return NavigationActionPolicy.CANCEL;
+                      }
                     }
 
                     final isMembership =
@@ -549,6 +587,66 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _navigateToSportPage(String path) {
+    final membershipController = Get.find<MembershipController>();
+    if (membershipController.isSubscribed.value) {
+      _webViewController?.loadUrl(
+        urlRequest: URLRequest(
+          url: WebUri('${AppConstants.webUrl}${path.startsWith('/') ? path.substring(1) : path}'),
+        ),
+      );
+    } else {
+      Get.snackbar(
+        'Subscription Required',
+        'Please subscribe to access this content.',
+        backgroundColor: const Color(0xFFC62828),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      Get.to(() => const SubscriptionScreen());
+    }
+  }
+
+  Future<void> _handleSportsPageAccess(InAppWebViewController controller, WebUri? url) async {
+    if (url == null) return;
+    
+    final cleanPath = url.path.replaceAll('//', '/');
+    final isSportsPage = cleanPath.startsWith('/baseball') ||
+        cleanPath.startsWith('/football') ||
+        cleanPath.startsWith('/mens-basketball') ||
+        cleanPath.startsWith('/womens-basketball');
+
+    if (isSportsPage) {
+      final membershipController = Get.find<MembershipController>();
+      if (!membershipController.isSubscribed.value) {
+        debugPrint('🚫 Access denied to sports page: $url. Redirecting to subscription page...');
+        
+        // Prevent the load/view from continuing by going back or loading home page
+        if (await controller.canGoBack()) {
+          await controller.goBack();
+        } else {
+          await controller.loadUrl(
+            urlRequest: URLRequest(
+              url: WebUri(AppConstants.webUrl),
+            ),
+          );
+        }
+
+        // Show warning snackbar
+        Get.snackbar(
+          'Subscription Required',
+          'Please subscribe to access this content.',
+          backgroundColor: const Color(0xFFC62828),
+          colorText: Colors.white,
+          snackPosition: SnackPosition.BOTTOM,
+        );
+
+        // Go to native subscription page
+        Get.to(() => const SubscriptionScreen());
+      }
+    }
+  }
+
   void _showMenuBottomSheet() {
     showModalBottomSheet(
       context: context,
@@ -679,7 +777,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.pop(context);
                       _webViewController?.loadUrl(
                         urlRequest: URLRequest(
-                          url: WebUri('https://hattersprime.com/join-now-new/'),
+                          url: WebUri('https://hattersprime.com/join-now-app/'),
                         ),
                       );
                     },
@@ -691,7 +789,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.pop(context);
                       _webViewController?.loadUrl(
                         urlRequest: URLRequest(
-                          url: WebUri('https://hattersprime.com/join-now-new/'),
+                          url: WebUri('https://hattersprime.com/join-now-app/'),
                         ),
                       );
                     },
@@ -739,11 +837,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     'BASEBALL HOME',
                     onTap: () {
                       Navigator.pop(context);
-                      _webViewController?.loadUrl(
-                        urlRequest: URLRequest(
-                          url: WebUri('${AppConstants.webUrl}/baseball'),
-                        ),
-                      );
+                      _navigateToSportPage('baseball');
                     },
                   ),
                   _buildMenuItem(
@@ -751,11 +845,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     'FOOTBALL HOME',
                     onTap: () {
                       Navigator.pop(context);
-                      _webViewController?.loadUrl(
-                        urlRequest: URLRequest(
-                          url: WebUri('${AppConstants.webUrl}/football'),
-                        ),
-                      );
+                      _navigateToSportPage('football');
                     },
                   ),
                   _buildMenuItem(
@@ -763,11 +853,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     'MENS BASKETBALL',
                     onTap: () {
                       Navigator.pop(context);
-                      _webViewController?.loadUrl(
-                        urlRequest: URLRequest(
-                          url: WebUri('${AppConstants.webUrl}/mens-basketball'),
-                        ),
-                      );
+                      _navigateToSportPage('mens-basketball');
                     },
                   ),
                   _buildMenuItem(
@@ -775,13 +861,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     'WOMENS BASKETBALL',
                     onTap: () {
                       Navigator.pop(context);
-                      _webViewController?.loadUrl(
-                        urlRequest: URLRequest(
-                          url: WebUri(
-                            '${AppConstants.webUrl}/womens-basketball',
-                          ),
-                        ),
-                      );
+                      _navigateToSportPage('womens-basketball');
                     },
                   ),
                   _buildMenuItem(
