@@ -193,6 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // Real-time validation after login
         final membershipController = Get.find<MembershipController>();
         await membershipController.fetchSubscriptionStatus();
+        await membershipController.fetchUserProfile();
 
         if (_hasVisitedSignup && !membershipController.isSubscribed.value) {
           debugPrint('🎉 Signup success! Redirecting to subscription page...');
@@ -405,6 +406,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   if (uri != null) {
                     final urlString = uri.toString();
                     
+                    // Intercept donation link and open in external browser
+                    if (urlString.contains('buy.stripe.com')) {
+                      _openExternalUrl(urlString);
+                      return NavigationActionPolicy.CANCEL;
+                    }
+
                     // Intercept the /join-now/ link and redirect internally
                     if (urlString.startsWith('https://hattersprime.com/join-now') &&
                         !urlString.startsWith('https://hattersprime.com/join-now-app')) {
@@ -421,7 +428,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     final isSportsPage = cleanPath.startsWith('/baseball') ||
                         cleanPath.startsWith('/football') ||
                         cleanPath.startsWith('/mens-basketball') ||
-                        cleanPath.startsWith('/womens-basketball');
+                        cleanPath.startsWith('/womens-basketball') ||
+                        cleanPath.startsWith('/golf');
 
                     if (isSportsPage) {
                       final membershipController = Get.find<MembershipController>();
@@ -638,7 +646,26 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _navigateToSportPage(String path) {
+  Future<void> _navigateToSportPage(String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('wordpressAuthToken') ?? '';
+
+    if (token.isEmpty) {
+      Get.snackbar(
+        'Login Required',
+        'Please log in to access this content.',
+        backgroundColor: const Color(0xFFC62828),
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      _webViewController?.loadUrl(
+        urlRequest: URLRequest(
+          url: WebUri('${AppConstants.webUrl}log-in/'),
+        ),
+      );
+      return;
+    }
+
     final membershipController = Get.find<MembershipController>();
     if (membershipController.isSubscribed.value) {
       _webViewController?.loadUrl(
@@ -665,7 +692,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final isSportsPage = cleanPath.startsWith('/baseball') ||
         cleanPath.startsWith('/football') ||
         cleanPath.startsWith('/mens-basketball') ||
-        cleanPath.startsWith('/womens-basketball');
+        cleanPath.startsWith('/womens-basketball') ||
+        cleanPath.startsWith('/golf');
 
     if (isSportsPage) {
       final membershipController = Get.find<MembershipController>();
@@ -763,9 +791,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     _webViewController?.loadUrl(
                       urlRequest: URLRequest(url: WebUri(AppConstants.webUrl)),
                     );
-                  }),
-                  _buildActionButton(Icons.settings_outlined, 'Settings', () {
-                    Navigator.pop(context);
                   }),
                   _buildActionButton(Icons.close, 'Close', () {
                     Navigator.pop(context);
@@ -920,11 +945,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     'GOLF HOME',
                     onTap: () {
                       Navigator.pop(context);
-                      _webViewController?.loadUrl(
-                        urlRequest: URLRequest(
-                          url: WebUri('${AppConstants.webUrl}/golf'),
-                        ),
-                      );
+                      _navigateToSportPage('golf');
                     },
                   ),
                   const SizedBox(height: 16), // Spacer for grouping

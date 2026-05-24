@@ -20,6 +20,43 @@ class MembershipController extends GetxController {
   var subscriptionPlan = ''.obs;
   var subscriptionExpiry = RxnString();
 
+  // User Profile
+  var userName = ''.obs;
+
+  Future<void> _loadStoredUserName() async {
+    final prefs = await SharedPreferences.getInstance();
+    userName.value = prefs.getString('wordpressUserName') ?? '';
+  }
+
+  Future<void> fetchUserProfile() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('wordpressAuthToken') ?? '';
+
+      if (token.isEmpty) {
+        userName.value = '';
+        await prefs.remove('wordpressUserName');
+        return;
+      }
+
+      final url = Uri.parse('${AppConstants.webUrl}wp-json/wp/v2/users/me');
+      final response = await http.get(
+        url,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final String name = data['name'] ?? '';
+        userName.value = name;
+        await prefs.setString('wordpressUserName', name);
+        debugPrint('Fetched WordPress User profile name: $name');
+      }
+    } catch (e) {
+      debugPrint('Error fetching user profile: $e');
+    }
+  }
+
   Future<void> fetchSubscriptionStatus() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -27,8 +64,13 @@ class MembershipController extends GetxController {
 
       if (token.isEmpty) {
         isSubscribed.value = false;
+        userName.value = '';
+        await prefs.remove('wordpressUserName');
         return;
       }
+
+      // Fetch user profile name concurrently
+      fetchUserProfile();
 
       final String nocache = DateTime.now().millisecondsSinceEpoch.toString();
       final url = Uri.parse(
@@ -105,6 +147,7 @@ class MembershipController extends GetxController {
 
   @override
   void onInit() {
+    _loadStoredUserName();
     final purchaseUpdated = _inAppPurchase.purchaseStream;
     _subscription = purchaseUpdated.listen(
       (purchaseDetailsList) {

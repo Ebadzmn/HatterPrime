@@ -5,6 +5,8 @@ import 'package:hatters_prime/services/notification_helper.dart';
 import 'package:get/get.dart';
 import 'package:hatters_prime/controllers/membership_controller.dart';
 import 'package:hatters_prime/screens/subscription_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hatters_prime/services/tts_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -84,6 +86,25 @@ class _SplashScreenState extends State<SplashScreen>
     // Initialize MembershipController globally and fetch status
     final membershipController = Get.put(MembershipController(), permanent: true);
     await membershipController.fetchSubscriptionStatus();
+
+    // Trigger TTS announcement based on login status
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('wordpressAuthToken') ?? '';
+
+      if (token.isEmpty) {
+        TtsService.speak("User is not logged in.");
+      } else {
+        final userName = prefs.getString('wordpressUserName') ?? '';
+        if (userName.isNotEmpty) {
+          TtsService.speak("Welcome back, $userName.");
+        } else {
+          TtsService.speak("Welcome back.");
+        }
+      }
+    } catch (e) {
+      debugPrint("Error playing welcome TTS: $e");
+    }
 
     if (mounted) {
       _navigateToHome();
