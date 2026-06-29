@@ -3,7 +3,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hatters_prime/firebase_options.dart';
-import 'package:hatters_prime/screens/splash_screen.dart';
+import 'package:hatters_prime/features/splash/bindings/splash_binding.dart';
+import 'package:hatters_prime/features/splash/pages/splash_page.dart';
 import 'package:hatters_prime/services/notification_helper.dart';
 
 Future<void> main() async {
@@ -58,7 +59,8 @@ class _MyAppState extends State<MyApp> {
         ),
         drawerTheme: const DrawerThemeData(backgroundColor: Colors.white),
       ),
-      home: const SplashScreen(),
+      initialBinding: SplashBinding(),
+      home: const SplashPage(),
     );
   }
 }
